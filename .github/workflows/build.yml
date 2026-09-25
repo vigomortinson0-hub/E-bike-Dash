@@ -1,0 +1,49 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+
+      - name: Rebuild Fresh Flutter App Structure
+        run: |
+          mkdir -p ../temp_code
+          cp lib/main.dart ../temp_code/main.dart
+          cp pubspec.yaml ../temp_code/pubspec.yaml 2>/dev/null || true
+          
+          # Очищаем старую структуру и пересоздаем чистый Flutter проект
+          rm -rf android ios web macos linux windows
+          flutter create --org com.ebike.dash . --force
+          
+          # Возвращаем наш исходный код
+          cp ../temp_code/main.dart lib/main.dart
+          
+          # Подтягиваем нужные зависимости
+          flutter pub add geolocator flutter_blue_plus wakelock_plus
+
+      - name: Build APK
+        run: flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/app/outputs/flutter-apk/app-release.apk
+          
