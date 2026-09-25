@@ -30,14 +30,18 @@ jobs:
           # Очищаем старую структуру
           rm -rf * .github
           
-          # Создаем чистый проект с валидным именем пакета
+          # Создаем чистый проект
           flutter create --org com.ebike.dash --project-name e_bike_dash .
           
           # Возвращаем наш код
           cp ../temp_code/main.dart lib/main.dart
           
-          # Подтягиваем нужные библиотеки
-          flutter pub add geolocator flutter_blue_plus wakelock_plus
+          # Указываем совместимые версии библиотек
+          flutter pub add geolocator:^12.0.0 flutter_blue_plus:^1.31.0 wakelock_plus:^1.2.0
+
+          # Настраиваем compileSdkVersion для поддержка плагинов
+          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle || true
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle || true
 
       - name: Build APK
         run: flutter build apk --release --no-tree-shake-icons
