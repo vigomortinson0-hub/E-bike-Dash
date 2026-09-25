@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -22,12 +22,21 @@ jobs:
         with:
           flutter-version: '3.22.0'
 
-      - name: Generate Android project structure
+      - name: Rebuild Fresh Flutter App
         run: |
-          flutter create . --org com.ebike.dash --platforms android
-
-      - name: Install dependencies
-        run: flutter pub get
+          # Сохраняем исходные файлы
+          mkdir -p ../temp_code
+          cp lib/main.dart ../temp_code/main.dart
+          
+          # Очищаем текущую директорию и создаём чистый проект Flutter
+          rm -rf * .github
+          flutter create --org com.ebike.dash .
+          
+          # Возвращаем наш файл main.dart
+          cp ../temp_code/main.dart lib/main.dart
+          
+          # Добавляем необходимые зависимости
+          flutter pub add geolocator flutter_blue_plus wakelock_plus
 
       - name: Build APK
         run: flutter build apk --release --no-tree-shake-icons
