@@ -24,26 +24,27 @@ jobs:
 
       - name: Build in Fresh Directory
         run: |
-          # Сохраняем путь к нашему коду
           REPO_DIR=$GITHUB_WORKSPACE
-          
-          # Выходим из текущей папки, чтобы старые файлы нам не мешали
           cd ..
           
-          # Создаем идеально чистый проект с нуля
+          # Создаем чистый проект
           flutter create --template=app --org com.ebike.dash ebike_app
           cd ebike_app
           
-          # Копируем туда только наш файл с дизайном и логикой
+          # Копируем исходный код
           cp $REPO_DIR/lib/main.dart lib/main.dart
           
-          # Добавляем актуальные зависимости (Flutter сам найдет нужные версии)
-          flutter pub add geolocator flutter_blue_plus wakelock_plus
+          # Фиксируем ТОЧНЫЕ совместимые версии пакетов (без мажорных прыжков на 9.x)
+          flutter pub add geolocator:12.0.0 flutter_blue_plus:1.32.0 wakelock_plus:1.2.8
           
-          # Собираем релизный APK (без ручных правок build.gradle!)
+          # Указываем правильные версии SDK для Android
+          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle
+          sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle
+          
+          # Собираем APK
           flutter build apk --release --no-tree-shake-icons
           
-          # Возвращаем готовый файл обратно, чтобы GitHub мог его отдать тебе
+          # Возвращаем APK в рабочую папку
           cp build/app/outputs/flutter-apk/app-release.apk $REPO_DIR/app-release.apk
 
       - name: Upload APK
