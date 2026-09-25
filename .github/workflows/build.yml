@@ -20,31 +20,57 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.5'
+          flutter-version: '3.19.6'
 
-      - name: Build in Fresh Directory
+      - name: Prepare and Build
         run: |
           REPO_DIR=$GITHUB_WORKSPACE
           cd ..
           
-          # Создаем чистый проект
+          # Создаем чистый проект Flutter
           flutter create --template=app --org com.ebike.dash ebike_app
           cd ebike_app
           
-          # Копируем исходный код
+          # Копируем наш main.dart
           cp $REPO_DIR/lib/main.dart lib/main.dart
           
-          # Фиксируем ТОЧНЫЕ совместимые версии пакетов (без мажорных прыжков на 9.x)
-          flutter pub add geolocator:12.0.0 flutter_blue_plus:1.32.0 wakelock_plus:1.2.8
-          
-          # Указываем правильные версии SDK для Android
-          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle
-          sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle
-          
-          # Собираем APK
+          # Настраиваем pubspec.yaml с проверенными стабильными библиотеками
+          cat << 'EOF' > pubspec.yaml
+          name: ebike_app
+          description: "E-bike Dashboard App"
+          publish_to: 'none'
+          version: 1.0.0+1
+
+          environment:
+            sdk: '>=3.0.0 <4.0.0'
+
+          dependencies:
+            flutter:
+              sdk: flutter
+            geolocator: ^10.1.0
+            flutter_blue_plus: ^1.30.0
+            wakelock_plus: ^1.1.4
+            cupertino_icons: ^1.0.6
+
+          dev_dependencies:
+            flutter_test:
+              sdk: flutter
+            flutter_lints: ^3.0.0
+
+          flutter:
+            uses-material-design: true
+          EOF
+
+          # Настраиваем android/app/build.gradle под свежие требования Android SDK
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
+          sed -i 's/targetSdkVersion .*/targetSdkVersion 34/' android/app/build.gradle
+
+          # Получаем зависимости и собираем APK
+          flutter pub get
           flutter build apk --release --no-tree-shake-icons
           
-          # Возвращаем APK в рабочую папку
+          # Переносим APK в папку артефактов
           cp build/app/outputs/flutter-apk/app-release.apk $REPO_DIR/app-release.apk
 
       - name: Upload APK
