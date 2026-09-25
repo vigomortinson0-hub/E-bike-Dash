@@ -26,16 +26,17 @@ jobs:
         run: |
           mkdir -p ../temp_code
           cp lib/main.dart ../temp_code/main.dart
-          cp pubspec.yaml ../temp_code/pubspec.yaml 2>/dev/null || true
           
-          # Очищаем старую структуру и пересоздаем чистый Flutter проект
-          rm -rf android ios web macos linux windows
-          flutter create --org com.ebike.dash . --force
+          # Очищаем старую несовместимую структуру
+          rm -rf * .github
+          
+          # Создаем чистый проект Flutter
+          flutter create --org com.ebike.dash .
           
           # Возвращаем наш исходный код
           cp ../temp_code/main.dart lib/main.dart
           
-          # Подтягиваем нужные зависимости
+          # Добавляем зависимости для GPS и Bluetooth
           flutter pub add geolocator flutter_blue_plus wakelock_plus
 
       - name: Build APK
@@ -46,4 +47,3 @@ jobs:
         with:
           name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
-          
