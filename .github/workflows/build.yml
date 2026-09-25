@@ -22,33 +22,33 @@ jobs:
         with:
           flutter-version: '3.24.5'
 
-      - name: Rebuild Fresh Flutter App Structure
+      - name: Build in Fresh Directory
         run: |
-          mkdir -p ../temp_code
-          cp lib/main.dart ../temp_code/main.dart
+          # Сохраняем путь к нашему коду
+          REPO_DIR=$GITHUB_WORKSPACE
           
-          # Очищаем папку
-          rm -rf * .github
+          # Выходим из текущей папки, чтобы старые файлы нам не мешали
+          cd ..
           
-          # Создаем чистый проект
-          flutter create --template=app --org com.ebike.dash --project-name e_bike_dash .
+          # Создаем идеально чистый проект с нуля
+          flutter create --template=app --org com.ebike.dash ebike_app
+          cd ebike_app
           
-          # Возвращаем наш исходный код
-          cp ../temp_code/main.dart lib/main.dart
+          # Копируем туда только наш файл с дизайном и логикой
+          cp $REPO_DIR/lib/main.dart lib/main.dart
           
-          # Задаем фиксированные ТОЧНЫЕ версии зависимостей без автоматического обновления до 7.x
-          flutter pub add geolocator:12.0.0 flutter_blue_plus:1.32.0 wakelock_plus:1.2.8
+          # Добавляем актуальные зависимости (Flutter сам найдет нужные версии)
+          flutter pub add geolocator flutter_blue_plus wakelock_plus
           
-          # Настраиваем версии Android SDK
-          sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle
-          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle
-
-      - name: Build APK
-        run: flutter build apk --release --no-tree-shake-icons --no-shrink
+          # Собираем релизный APK (без ручных правок build.gradle!)
+          flutter build apk --release --no-tree-shake-icons
+          
+          # Возвращаем готовый файл обратно, чтобы GitHub мог его отдать тебе
+          cp build/app/outputs/flutter-apk/app-release.apk $REPO_DIR/app-release.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: app-release.apk
           
