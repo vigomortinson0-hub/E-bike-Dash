@@ -20,21 +20,21 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
+          flutter-version: '3.22.3'
 
       - name: Prepare and Build
         run: |
           REPO_DIR=$GITHUB_WORKSPACE
           cd ..
           
-          # Создаем чистый проект Flutter
-          flutter create --template=app --org com.ebike.dash ebike_app
+          # Создаем проект с явным указанием Android-языка (Kotlin)
+          flutter create --template=app --android-language kotlin --org com.ebike.dash ebike_app
           cd ebike_app
           
-          # Копируем наш main.dart
+          # Копируем наш файл main.dart
           cp $REPO_DIR/lib/main.dart lib/main.dart
           
-          # Настраиваем pubspec.yaml с проверенными стабильными библиотеками
+          # Формируем pubspec.yaml с совместимыми версиями
           cat << 'EOF' > pubspec.yaml
           name: ebike_app
           description: "E-bike Dashboard App"
@@ -42,14 +42,14 @@ jobs:
           version: 1.0.0+1
 
           environment:
-            sdk: '>=3.0.0 <4.0.0'
+            sdk: '>=3.2.0 <4.0.0'
 
           dependencies:
             flutter:
               sdk: flutter
-            geolocator: ^10.1.0
-            flutter_blue_plus: ^1.30.0
-            wakelock_plus: ^1.1.4
+            geolocator: ^11.0.0
+            flutter_blue_plus: ^1.32.0
+            wakelock_plus: ^1.2.0
             cupertino_icons: ^1.0.6
 
           dev_dependencies:
@@ -61,16 +61,16 @@ jobs:
             uses-material-design: true
           EOF
 
-          # Настраиваем android/app/build.gradle под свежие требования Android SDK
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle
-          sed -i 's/minSdkVersion .*/minSdkVersion 21/' android/app/build.gradle
-          sed -i 's/targetSdkVersion .*/targetSdkVersion 34/' android/app/build.gradle
+          # Прописываем параметры SDK прямо в app/build.gradle
+          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle || true
+          sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle || true
+          sed -i 's/targetSdk = .*/targetSdk = 34/' android/app/build.gradle || true
 
-          # Получаем зависимости и собираем APK
+          # Сборка пакетов и APK
           flutter pub get
           flutter build apk --release --no-tree-shake-icons
           
-          # Переносим APK в папку артефактов
+          # Сохраняем APK для загрузки
           cp build/app/outputs/flutter-apk/app-release.apk $REPO_DIR/app-release.apk
 
       - name: Upload APK
