@@ -1,17 +1,23 @@
-name: ebike_dash
-description: "Minimalist E-Bike Dashboard for JK BMS and GPS"
+name: ebike_app
+description: "E-Bike Dashboard with Speedometer and JK BMS"
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
-  geolocator: ^12.0.0
-  flutter_blue_plus: ^1.31.0
-  wakelock_plus: ^1.2.0
+  geolocator: ^10.1.0
+  flutter_blue_plus: ^1.15.0
+  wakelock_plus: ^1.1.4
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
 
 flutter:
   uses-material-design: true
