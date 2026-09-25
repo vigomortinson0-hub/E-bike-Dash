@@ -20,21 +20,21 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.3'
+          flutter-version: '3.19.6'
 
       - name: Prepare and Build
         run: |
           REPO_DIR=$GITHUB_WORKSPACE
           cd ..
           
-          # Создаем проект с явным указанием Android-языка (Kotlin)
-          flutter create --template=app --android-language kotlin --org com.ebike.dash ebike_app
+          # Создаем чистый Flutter проект
+          flutter create --template=app --org com.ebike.dash ebike_app
           cd ebike_app
           
-          # Копируем наш файл main.dart
+          # Переносим главный файл
           cp $REPO_DIR/lib/main.dart lib/main.dart
           
-          # Формируем pubspec.yaml с совместимыми версиями
+          # 1. Настраиваем pubspec.yaml
           cat << 'EOF' > pubspec.yaml
           name: ebike_app
           description: "E-bike Dashboard App"
@@ -48,7 +48,7 @@ jobs:
             flutter:
               sdk: flutter
             geolocator: ^11.0.0
-            flutter_blue_plus: ^1.32.0
+            flutter_blue_plus: ^1.31.0
             wakelock_plus: ^1.2.0
             cupertino_icons: ^1.0.6
 
@@ -61,16 +61,75 @@ jobs:
             uses-material-design: true
           EOF
 
-          # Прописываем параметры SDK прямо в app/build.gradle
-          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle || true
-          sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle || true
-          sed -i 's/targetSdk = .*/targetSdk = 34/' android/app/build.gradle || true
+          # 2. Настраиваем android/settings.gradle (Важно для flutter_blue_plus!)
+          cat << 'EOF' > android/settings.gradle
+          pluginManagement {
+              def flutterSdkPath = {
+                  def properties = new Properties()
+                  def file = new File(rootProject.projectDir, "local.properties")
+                  if (file.exists()) {
+                      file.withReader("UTF-8") { reader -> properties.load(reader) }
+                  }
+                  def flutterSdkDir = properties.getProperty("flutter.sdk")
+                  assert flutterSdkDir != null : "flutter.sdk not set in local.properties"
+                  return flutterSdkDir
+              }()
 
-          # Сборка пакетов и APK
+              includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+
+          plugins {
+              id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+              id "com.android.application" version "8.2.1" apply false
+              id "org.jetbrains.kotlin.android" version "1.8.22" apply false
+          }
+
+          include ":app"
+          EOF
+
+          # 3. Настраиваем android/app/build.gradle
+          cat << 'EOF' > android/app/build.gradle
+          plugins {
+              id "com.android.application"
+              id "kotlin-android"
+              id "dev.flutter.flutter-gradle-plugin"
+          }
+
+          android {
+              namespace "com.ebike.dash.ebike_app"
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId "com.ebike.dash.ebike_app"
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+
+          flutter {
+              source '../..'
+          }
+          EOF
+
+          # Запуск сборки
           flutter pub get
           flutter build apk --release --no-tree-shake-icons
           
-          # Сохраняем APK для загрузки
+          # Сохранение результата
           cp build/app/outputs/flutter-apk/app-release.apk $REPO_DIR/app-release.apk
 
       - name: Upload APK
