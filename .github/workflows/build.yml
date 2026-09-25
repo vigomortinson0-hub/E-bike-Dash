@@ -30,15 +30,18 @@ jobs:
           # Очищаем старую структуру
           rm -rf * .github
           
-          # Создаем чистый проект с новым Gradle-шаблоном
+          # Создаем чистый проект
           flutter create --template=app --org com.ebike.dash --project-name e_bike_dash .
           
           # Возвращаем наш исходный код
           cp ../temp_code/main.dart lib/main.dart
           
-          # Настраиваем версии Android SDK прямо в gradle
+          # Выставляем Android SDK 35 (требуется новыми плагинами)
           sed -i 's/minSdk = .*/minSdk = 21/' android/app/build.gradle
-          sed -i 's/compileSdk = .*/compileSdk = 34/' android/app/build.gradle
+          sed -i 's/compileSdk = .*/compileSdk = 35/' android/app/build.gradle
+          
+          # Обновляем Kotlin Gradle Plugin до версии 2.0.20 для совместимости с Kotlin 2.x
+          sed -i 's/id "org.jetbrains.kotlin.android" version .*/id "org.jetbrains.kotlin.android" version "2.0.20" apply false/' android/settings.gradle
           
           # Добавляем зависимости
           flutter pub add geolocator:^13.0.1 flutter_blue_plus:^1.34.0 wakelock_plus:^1.2.8
