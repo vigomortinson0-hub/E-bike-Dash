@@ -1,221 +1,257 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:geolocator/geolocator.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  runApp(const EBikeApp());
+  runApp(const FedanBikeApp());
 }
 
-class EBikeApp extends StatelessWidget {
-  const EBikeApp({super.key});
+class FedanBikeApp extends StatelessWidget {
+  const FedanBikeApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.black, // Настоящий AMOLED Black
+      title: 'Fedan Bike',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF101114),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.green,
+          brightness: Brightness.dark,
+        ),
       ),
-      home: const DashScreen(),
+      home: const BikeScreen(),
     );
   }
 }
 
-class DashScreen extends StatefulWidget {
-  const DashScreen({super.key});
+class BikeScreen extends StatefulWidget {
+  const BikeScreen({super.key});
 
   @override
-  State<DashScreen> createState() => _DashScreenState();
+  State<BikeScreen> createState() => _BikeScreenState();
 }
 
-class _DashScreenState extends State<DashScreen> {
-  double _speed = 0.0;
-  int _soc = 0;
-  double _voltage = 0.0;
-  double _current = 0.0;
-  bool _isConnected = false;
-  
-  StreamSubscription<Position>? _positionStream;
-  BluetoothDevice? _bmsDevice;
-  StreamSubscription<List<int>>? _bmsDataStream;
+class _BikeScreenState extends State<BikeScreen> {
+  double speed = 0.0;
+
+  String gpsStatus = 'Ожидание GPS';
+  String bluetoothStatus = 'Ожидание Bluetooth';
+
+  StreamSubscription<Position>? positionSubscription;
+  StreamSubscription<List<ScanResult>>? scanSubscription;
 
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable(); // Экрану запрещено гаснуть
-    _initGPS();
+    startGps();
   }
 
-  void _initGPS() async {
-    LocationPermission permission = await Geolocator.checkPermission();
+  Future<void> startGps() async {
+    bool enabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!enabled) {
+      setState(() {
+        gpsStatus = 'GPS выключен';
+      });
+      return;
+    }
+
+    LocationPermission permission =
+        await Geolocator.checkPermission();
+
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    
-    LocationSettings settings = const LocationSettings(
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      setState(() {
+        gpsStatus = 'Нет разрешения GPS';
+      });
+      return;
+    }
+
+    const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: 0,
     );
 
-    _positionStream = Geolocator.getPositionStream(locationSettings: settings).listen((pos) {
+    positionSubscription =
+        Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen((Position position) {
+      if (!mounted) return;
+
       setState(() {
-        _speed = pos.speed > 0 ? pos.speed * 3.6 : 0.0; // Перевод м/с в км/ч
+        speed = position.speed * 3.6;
+
+        if (speed < 0.5) {
+          speed = 0;
+        }
+
+        gpsStatus = 'GPS подключен';
       });
     });
   }
 
-  void _connectBMS() async {
-    FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-    FlutterBluePlus.scanResults.listen((results) async {
-      for (ScanResult r in results) {
-        if (r.device.platformName.contains("JK") || r.device.platformName.contains("JK-BD4A24S4P")) {
-          FlutterBluePlus.stopScan();
-          _bmsDevice = r.device;
-          await _bmsDevice!.connect();
-          setState(() => _isConnected = true);
-          
-          List<BluetoothService> services = await _bmsDevice!.discoverServices();
-          for (var service in services) {
-            for (var characteristic in service.characteristics) {
-              if (characteristic.properties.notify || characteristic.properties.indicate) {
-                await characteristic.setNotifyValue(true);
-                _bmsDataStream = characteristic.lastValueStream.listen(_parseBMSData);
-              }
-            }
-          }
-          break;
-        }
-      }
+  Future<void> scanBluetooth() async {
+    setState(() {
+      bluetoothStatus = 'Поиск BMS...';
     });
-  }
 
-  void _parseBMSData(List<int> data) {
-    if (data.length > 20) {
+    scanSubscription?.cancel();
+
+    scanSubscription = FlutterBluePlus.onScanResults.listen(
+      (results) {
+        for (final result in results) {
+          final name = result.device.platformName;
+
+          if (name.isNotEmpty) {
+            debugPrint(
+              'BLE: $name / ${result.device.remoteId}',
+            );
+          }
+
+          if (name.toLowerCase().contains('jk') ||
+              name.toLowerCase().contains('jkbms')) {
+            setState(() {
+              bluetoothStatus = 'Найдена JK BMS';
+            });
+          }
+        }
+      },
+    );
+
+    await FlutterBluePlus.startScan(
+      timeout: const Duration(seconds: 8),
+    );
+
+    if (mounted) {
       setState(() {
-        // Парсинг байт JK BMS
-        _soc = data[141]; 
-        _voltage = ((data[118] << 8) | data[119]) / 100.0;
-        _current = ((data[126] << 8) | data[127]) / 100.0;
+        bluetoothStatus = 'Сканирование завершено';
       });
     }
   }
 
   @override
   void dispose() {
-    _positionStream?.cancel();
-    _bmsDataStream?.cancel();
-    _bmsDevice?.disconnect();
-    WakelockPlus.disable();
+    positionSubscription?.cancel();
+    scanSubscription?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: OrientationBuilder(
-        builder: (context, orientation) {
-          bool isLandscape = orientation == Orientation.landscape;
-          return SafeArea(
-            child: isLandscape ? _buildLandscapeLayout() : _buildPortraitLayout(),
-          );
-        },
+      appBar: AppBar(
+        title: const Text('FEDAN BIKE'),
+        centerTitle: true,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+
+            const Text(
+              'СКОРОСТЬ',
+              style: TextStyle(
+                fontSize: 18,
+                color: Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              speed.toStringAsFixed(1),
+              style: const TextStyle(
+                fontSize: 82,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const Text(
+              'км/ч',
+              style: TextStyle(
+                fontSize: 22,
+              ),
+            ),
+
+            const SizedBox(height: 40),
+
+            infoRow(
+              'GPS',
+              gpsStatus,
+            ),
+
+            const SizedBox(height: 15),
+
+            infoRow(
+              'BMS',
+              bluetoothStatus,
+            ),
+
+            const SizedBox(height: 30),
+
+            ElevatedButton(
+              onPressed: scanBluetooth,
+              child: const Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: 25,
+                  vertical: 14,
+                ),
+                child: Text(
+                  'НАЙТИ BMS',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ),
+            ),
+
+            const Spacer(),
+
+            const Text(
+              'JK BMS • 16S LiFePO₄',
+              style: TextStyle(
+                color: Colors.grey,
+              ),
+            ),
+
+            const SizedBox(height: 15),
+          ],
+        ),
       ),
     );
   }
 
-  // Вертикальный режим
-  Widget _buildPortraitLayout() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildSpeedDisplay(120),
-        _buildBmsDataRow(),
-        _buildConnectButton(),
-      ],
-    );
-  }
-
-  // Горизонтальный режим
-  Widget _buildLandscapeLayout() {
-    return Row(
-      children: [
-        Expanded(child: Center(child: _buildSpeedDisplay(140))),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildBmsDataRow(),
-              const SizedBox(height: 20),
-              _buildConnectButton(),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSpeedDisplay(double fontSize) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          _speed.toStringAsFixed(0),
-          style: TextStyle(
-            fontSize: fontSize,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            height: 1.0,
-          ),
-        ),
-        const Text(
-          "КМ/Ч",
-          style: TextStyle(fontSize: 20, color: Colors.grey, letterSpacing: 2),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildBmsDataRow() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildStatTile("${_soc}%", "ЗАРЯД", Colors.greenAccent),
-        _buildStatTile("${_voltage.toStringAsFixed(1)}В", "ВОЛЬТЫ", Colors.cyanAccent),
-        _buildStatTile("${_current.toStringAsFixed(1)}А", "ТОК", Colors.orangeAccent),
-      ],
-    );
-  }
-
-  Widget _buildStatTile(String value, String label, Color color) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: color),
-        ),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildConnectButton() {
-    return TextButton.icon(
-      onPressed: _connectBMS,
-      icon: Icon(
-        _isConnected ? Icons.bluetooth_connected : Icons.bluetooth_searching,
-        color: _isConnected ? Colors.greenAccent : Colors.redAccent,
+  Widget infoRow(String title, String value) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1D21),
+        borderRadius: BorderRadius.circular(15),
       ),
-      label: Text(
-        _isConnected ? "JK BMS Подключен" : "Поиск JK BMS",
-        style: TextStyle(color: _isConnected ? Colors.greenAccent : Colors.redAccent),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 18),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
