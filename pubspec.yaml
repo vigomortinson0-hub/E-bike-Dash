@@ -1,24 +1,24 @@
-name: ebike_app
-description: "E-Bike Dashboard with Speedometer and JK BMS"
-publish_to: 'none'
+name: fedan_bms
+description: GPS speedometer and JK BMS monitor
+publish_to: "none"
+
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.2.0 <4.0.0'
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  geolocator: ^10.1.0
-  flutter_blue_plus: ^1.15.0
-  wakelock_plus: ^1.1.4
-  cupertino_icons: ^1.0.6
+
+  cupertino_icons: ^1.0.8
+  flutter_blue_plus: ^1.12.13
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
-  
